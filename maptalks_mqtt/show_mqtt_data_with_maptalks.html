@@ -92,7 +92,7 @@
 		var msg = JSON.parse(message.payloadString);
 		var clientKey = msg.instance + "_" + msg.clientId;
 		if (msg.action == "Connect") {
-			var circle = new maptalks.Circle([ msg.longitude, msg.latitude], 3000,{
+			var circle = new maptalks.Circle([ msg.longitude, msg.latitude], 10000,{
 				symbol: {
 				  lineColor: '#34495e',
 				  lineWidth: 0,
