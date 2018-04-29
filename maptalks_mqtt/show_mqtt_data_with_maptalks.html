@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Geometry - LineString</title>
+  <style type="text/css">
+    html,body{margin:0px;height:100%;width:100%}
+    .container{width:100%;height:100%}
+  </style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maptalks@0.39.4/dist/maptalks.css">
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/maptalks@0.39.4/dist/maptalks.min.js"></script>
+  <script src="https://unpkg.com/paho-mqtt@1.0.4/paho-mqtt.js" type="text/javascript"></script>
+  <body>
+    
+    <div id="map" class="container"></div>
+
+    <script>
+	  // config you need to change
+	  var mqttEndpointUrl = "<your_endpoint_name>.mqtt.iot.bj.baidubce.com";
+	  var mqttUserName = "<your_mqtt_user_name>";
+	  var mqttPassword = "<your_mqtt_password>";
+	  var mqttTopicToSub = "<your_mqtt_topic>";
+	  // end of config
+	  
+	//  to view the dot be plotted on the map, send a MQTT message with following format to the mqtt topic
+	//  {
+	//    "instance": "myendpoint",
+	//    "clientId": "mqtt_clientid",
+	//    "action": "Connect",
+	//    "latitude": 31.23,
+	//    "longitude": 121.47
+	//  }
+	  
+      var map = new maptalks.Map('map', {
+        // geolocation of xi'an city, center of China
+		center: [108.40, 33.928568],
+        zoom: 5,
+        baseLayer: new maptalks.TileLayer('base', {
+          urlTemplate: 'http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+          subdomains: ['a','b','c','d'],
+          attribution: '&copy; <a href="http://osm.org">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/">CARTO</a>'
+        })
+      });
+      
+     
+      var vl = new maptalks.VectorLayer('vector');
+	  vl.addTo(map);
+	  var circles = {};
+	  
+	  var options = {
+        'title'     : 'enpoint and clientid',
+        'content'   : 'Click on map to reopen'
+
+        // 'autoPan': true,
+        // 'width': 300,
+        // 'minHeight': 120,
+        // 'custom': false,
+        //'autoOpenOn' : 'click',  //set to null if not to open window when clicking on map
+        //'autoCloseOn' : 'click'
+      };
+	  
+	  // show a info window on mouse enter
+      var infoWindow = new maptalks.ui.InfoWindow(options);
+      infoWindow.addTo(map);
+	  
+	  // client for bj
+	  var clientid = "clientid_demo_maptalk_with_mqtt";// + Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 5);
+	  var client = new Paho.MQTT.Client(mqttEndpointUrl, 8884, clientid);
+	  client.onMessageArrived = onMessageArrived;
+	  client.onConnectionLost = connectLost;
+	  var connectOptions = {};
+	  connectOptions.userName = mqttUserName;
+	  connectOptions.password = mqttPassword;
+	  connectOptions.onSuccess = onConnect;
+	  connectOptions.useSSL = true;
+	  connectOptions.reconnect = true;
+	  client.connect(connectOptions);
+	  
+	  
+	  function onConnect() {
+		// Once a connection has been made, make a subscription and send a message.
+		console.log("onConnect");
+		client.subscribe(mqttTopicToSub);
+	  }
+	  
+      function connectLost() {
+		console.log("connection lost");
+	  }
+	  
+	  function onMessageArrived(message) {
+	  
+		var msg = JSON.parse(message.payloadString);
+		var clientKey = msg.instance + "_" + msg.clientId;
+		if (msg.action == "Connect") {
+			var circle = new maptalks.Circle([ msg.longitude, msg.latitude], 3000,{
+				symbol: {
+				  lineColor: '#34495e',
+				  lineWidth: 0,
+				  polygonFill: '#00ec00',
+				  polygonOpacity: 0.7
+				}
+			  }).on('mouseenter', function (e) {
+
+			  //update markerFill to highlight
+			  infoWindow.setContent(clientKey);
+			  infoWindow.show(e.target.getCoordinates());
+			}).on('mouseout', function (e) {
+			  infoWindow.hide();
+			});
+			
+		   vl.addGeometry([circle]);
+		   circles[clientKey] = circle;
+	   } else if (msg.action == "Disconnect") {
+			vl.removeGeometry([circles[clientKey]]);
+			delete circles[clientKey];
+	   }
+	}
+    </script>
+  </body>
+</html>
